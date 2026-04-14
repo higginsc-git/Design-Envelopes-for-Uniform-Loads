@@ -1,6 +1,6 @@
 # Design Envelopes
 
-A browser-based tool for computing dead load and pattern-loaded live load design envelopes on simply-supported beams with optional cantilevers on both ends. Envelopes are generated at 2 ft spacing along the bridge using influence line integration.
+A browser-based tool for computing dead load and pattern-loaded live load design envelopes on simply-supported beams with optional cantilevers on both ends. Envelopes are generated at 2 ft spacing along the span using influence line integration.
 
 ## Author
 
