@@ -12,9 +12,9 @@ Based on original Fortran analysis program by C. Higgins (2004)
 
 ## What It Does
 
-For each point at 2 ft spacing along the bridge, this program computes the full unit-load influence line and integrates it to determine design envelope values:
+For each point at 2 ft spacing along the span, this program computes the full unit-load influence line and integrates it to determine design envelope values:
 
-- **Dead load moment and shear** — the dead load covers the entire bridge, so the full influence line is integrated with the dead load intensity to produce a single M and V value at each point
+- **Dead load moment and shear** — the dead load covers the entire span, so the full influence line is integrated with the dead load intensity to produce a single M and V value at each point
 - **Live load moment and shear envelopes** — the live load is pattern-loaded using the influence line: positive IL areas are loaded independently from negative IL areas to produce the maximum positive and maximum negative effects at each point. This gives four envelope values: +M, −M, +V, −V
 
 The output is four envelope plots (dead load moment, dead load shear, live load moment envelope, live load shear envelope) and a data table with all values at 2 ft spacing.
@@ -28,12 +28,12 @@ The output is four envelope plots (dead load moment, dead load shear, live load 
 
 ## Results Tabs
 
-- **Envelope Plots** — Four full-width plots stacked vertically: Dead Load Moment, Dead Load Shear, Live Load Moment Envelope (max positive in green, max negative in red, with shaded fill between), and Live Load Shear Envelope. Below the plots, summary cards show the global extreme values and their locations along the bridge.
+- **Envelope Plots** — Four full-width plots stacked vertically: Dead Load Moment, Dead Load Shear, Live Load Moment Envelope (max positive in green, max negative in red, with shaded fill between), and Live Load Shear Envelope. Below the plots, summary cards show the global extreme values and their locations along the span.
 - **Data Table** — Scrollable table at 2 ft spacing with seven columns: position, dead M, dead V, live +M, live −M, live +V, live −V. At supports (where cantilevers meet the main span), the table includes rows at ±0.0001 ft from the support to capture the shear discontinuity, highlighted in orange with bold shear values.
 
 ## Pattern Loading Concept
 
-The live load envelope is computed by selectively loading only the portions of the bridge that produce the worst-case effect at each point:
+The live load envelope is computed by selectively loading only the portions of the span that produce the worst-case effect at each point:
 
 - **Maximum positive moment at a point**: live load is placed only where the moment influence line is positive
 - **Maximum negative moment at a point**: live load is placed only where the moment influence line is negative
@@ -49,7 +49,7 @@ When cantilevers are present, shear has a discontinuity at each support (where t
 - Computing values at ±0.0001 ft from the support to capture the shear on both sides
 - Highlighting these rows in the data table
 
-When there are no cantilevers, the supports are at the bridge ends and are handled by a small offset (0.0001 ft) from each end.
+When there are no cantilevers, the supports are at the span ends and are handled by a small offset (0.0001 ft) from each end.
 
 ## Sign Convention
 
@@ -58,7 +58,7 @@ When there are no cantilevers, the supports are at the bridge ends and are handl
 
 ## Technical Details
 
-- At each 2 ft point, a complete unit-load influence line is computed using 1000 increments across the bridge
+- At each 2 ft point, a complete unit-load influence line is computed using 1000 increments across the span
 - The influence line is integrated using the trapezoidal rule with zero-crossing detection to separate positive and negative areas
 - For a typical 80 ft bridge, this involves approximately 40 separate influence line analyses
 - Analysis points near span boundaries use a small offset (0.0001 ft) to avoid numerical singularities
