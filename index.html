@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Envelopes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0e1117;--card-bg:#161b22;--card-bg2:#1c2333;--border:#2a3040;--text:#e0e4ea;--text-dim:#7a8599;--accent:#4d9aff;--accent2:#38bdf8;--highlight:#f97316;--green:#34d399;--red:#ef4444;--purple:#a78bfa;--input-bg:#1a2030;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;}
+.app{max-width:1000px;margin:0 auto;padding:24px 16px 60px;}
+.header{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;}
+.header h1{font-size:22px;font-weight:700;color:var(--accent);letter-spacing:-0.5px;}
+.header .sub{font-size:12px;color:var(--text-dim);font-family:'DM Mono',monospace;}
+.section{background:var(--card-bg);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:16px;}
+.section-title{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:14px;font-family:'DM Mono',monospace;}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.field{display:flex;flex-direction:column;gap:4px;}
+.field label{font-size:11px;color:var(--text-dim);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.5px;}
+.field input{background:var(--input-bg);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:8px 10px;font-size:13px;font-family:'DM Mono',monospace;width:100%;outline:none;transition:border-color .2s;}
+.field input:focus{border-color:var(--accent);}
+.btn-run{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:8px;padding:12px 36px;font-size:14px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;letter-spacing:.5px;}
+.btn-run:hover{filter:brightness(1.15);transform:translateY(-1px);}
+.btn-run:active{transform:translateY(0);}
+.tabs{display:flex;gap:2px;margin-bottom:16px;background:var(--input-bg);border-radius:8px;padding:3px;flex-wrap:wrap;}
+.tab{padding:8px 16px;font-size:12px;font-weight:500;border-radius:6px;cursor:pointer;color:var(--text-dim);font-family:'DM Sans',sans-serif;transition:all .15s;border:none;background:none;white-space:nowrap;}
+.tab.active{background:var(--accent);color:#fff;}
+.tab:not(.active):hover{color:var(--text);}
+table{width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:11px;}
+th{text-align:left;padding:7px 8px;border-bottom:2px solid var(--border);color:var(--text-dim);font-weight:500;font-size:10px;text-transform:uppercase;letter-spacing:.5px;}
+td{padding:6px 8px;border-bottom:1px solid var(--border);}
+tr:last-child td{border-bottom:none;}
+.val-pos{color:var(--green);}.val-neg{color:var(--red);}
+.note{font-size:11px;color:var(--text-dim);font-style:italic;margin-top:6px;}
+.stat-card{background:var(--card-bg2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;}
+.stat-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;font-family:'DM Mono',monospace;margin-bottom:4px;}
+.stat-val{font-size:18px;font-weight:700;font-family:'DM Mono',monospace;}
+@media(max-width:700px){.row{flex-direction:column;}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+/*
+ * Design Envelopes
+ *
+ * Developed by Christopher Higgins, PhD, PE
+ * School of Civil and Construction Engineering
+ * Oregon State University, 2025
+ *
+ * Based on original Fortran analysis program by C. Higgins (2004)
+ *
+ * DISCLAIMER: This software is provided as-is for educational and reference
+ * purposes. Engineers should independently verify all results before using
+ * them for design. The author assumes no liability for the use of this
+ * software in engineering practice.
+ *
+ * Released under the MIT License.
+ */
+const {useState,useCallback,useMemo}=React;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ANALYSIS ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+
+function computeSpanMoments(wt,a,lspan,numsp,Z,spanTypes){
+  const m=new Float64Array(2*numsp),type=spanTypes[lspan],idx=lspan*2;
+  if(type==="leftCant"){m[idx]=0;m[idx+1]=wt*(Z[lspan]-a);if(idx+2<2*numsp)m[idx+2]=-m[idx+1];}
+  else if(type==="rightCant"){m[idx]=-wt*a;m[idx+1]=0;if(idx-1>=0)m[idx-1]=wt*a;}
+  return m;
+}
+function computeShears(m,wt,a,lspan,numsp,Z){
+  const v=new Float64Array(2*numsp);
+  for(let j=0;j<numsp;j++){const k=j*2;v[k]=(-m[k]-m[k+1])/Z[j];v[k+1]=(m[k]+m[k+1])/Z[j];}
+  const jl=lspan*2;v[jl]+=(wt*(Z[lspan]-a))/Z[lspan];v[jl+1]+=(wt*a)/Z[lspan];return v;
+}
+function computeInteriorMV(wt,a,lspan,numsp,m,v,xloc,npt){
+  const mpt=[],vpt=[];
+  for(let l=0;l<numsp;l++){const kid=l*2,kk=npt[l];mpt[l]=new Float64Array(kk);vpt[l]=new Float64Array(kk);
+    for(let f=0;f<kk;f++){mpt[l][f]=-m[kid]-v[kid]*xloc[l][f];vpt[l][f]=-v[kid];}}
+  for(let km=0;km<npt[lspan];km++){if(a<xloc[lspan][km]){mpt[lspan][km]+=wt*(xloc[lspan][km]-a);vpt[lspan][km]+=wt;}}
+  return{mpt,vpt};
+}
+function invertSigns(numsp,mtot,vtot,mpttot,vpttot,npt){
+  const hm=new Float64Array(2*numsp),hv=new Float64Array(2*numsp);
+  for(let i=0;i<numsp;i++){const t=i*2;hm[t]=mtot[t];hv[t]=vtot[t];hm[t+1]=-mtot[t+1];hv[t+1]=-vtot[t+1];}
+  const hmpt=[],hvpt=[];
+  for(let j=0;j<numsp;j++){hmpt[j]=new Float64Array(npt[j]);hvpt[j]=new Float64Array(npt[j]);
+    for(let m=0;m<npt[j];m++){hmpt[j][m]=-mpttot[j][m];hvpt[j][m]=-vpttot[j][m];}}
+  return{hm,hv,hmpt,hvpt};
+}
+
+// Run unit load analysis for a single analysis point, return IL data
+function runUnitLoadIL(spans,spanTypes,Z,numsp,totalLen,poiSpanIdx,poiLocalX){
+  const xloc=[],npt=[];
+  for(let s=0;s<numsp;s++){
+    if(s===poiSpanIdx){xloc.push([poiLocalX]);npt.push(1);}
+    else{xloc.push([]);npt.push(0);}
+  }
+  const numInc=1000,incSize=totalLen/(numInc-1);
+  const zeta=[],moment=[],shear=[];
+  for(let i=0;i<numInc;i++){
+    const z=i*incSize;
+    const mtot=new Float64Array(2*numsp),vtot=new Float64Array(2*numsp);
+    const mpttot=[],vpttot=[];
+    for(let l=0;l<numsp;l++){mpttot[l]=new Float64Array(npt[l]);vpttot[l]=new Float64Array(npt[l]);}
+    let cumLen=0,foundSpan=-1;
+    for(let sp=0;sp<numsp;sp++){if(z>=cumLen&&z<=cumLen+Z[sp]){foundSpan=sp;break;}cumLen+=Z[sp];}
+    if(foundSpan>=0){
+      cumLen=0;for(let sp=0;sp<foundSpan;sp++)cumLen+=Z[sp];
+      const a=z-cumLen,wt=1.0;
+      const m=computeSpanMoments(wt,a,foundSpan,numsp,Z,spanTypes);
+      const v=computeShears(m,wt,a,foundSpan,numsp,Z);
+      const{mpt,vpt}=computeInteriorMV(wt,a,foundSpan,numsp,m,v,xloc,npt);
+      for(let l=0;l<numsp;l++)for(let k=0;k<npt[l];k++){mpttot[l][k]+=mpt[l][k];vpttot[l][k]+=vpt[l][k];}
+      for(let km=0;km<2*numsp;km++){mtot[km]+=m[km];vtot[km]+=v[km];}
+    }
+    const{hmpt,hvpt}=invertSigns(numsp,mtot,vtot,mpttot,vpttot,npt);
+    zeta.push(z);
+    moment.push(npt[poiSpanIdx]>0?hmpt[poiSpanIdx][0]:0);
+    shear.push(npt[poiSpanIdx]>0?hvpt[poiSpanIdx][0]:0);
+  }
+  return{zeta,moment,shear};
+}
+
+// Integrate IL: dead load uses full area, live load separates +/- areas
+function integrateIL(ilData,w){
+  const n=ilData.zeta.length;
+  if(n<2)return{totalM:0,totalV:0,posM:0,negM:0,posV:0,negV:0};
+  const del=ilData.zeta[1]-ilData.zeta[0],AV=new Float64Array(n),AM=new Float64Array(n);
+  for(let i=1;i<n;i++){AV[i]=AV[i-1]+.5*del*(ilData.shear[i]+ilData.shear[i-1]);AM[i]=AM[i-1]+.5*del*(ilData.moment[i]+ilData.moment[i-1]);}
+  const areas=(ord,cum)=>{const cr=[0];for(let i=1;i<n;i++)if((ord[i]>0&&ord[i-1]<=0)||(ord[i]<0&&ord[i-1]>=0))cr.push(i-1);cr.push(n-1);
+    let p=0,ng=0;for(let k=1;k<cr.length;k++){const s=cum[cr[k]]-cum[cr[k-1]];if(s>0)p+=s;else ng+=s;}return{p,ng};};
+  const va=areas(ilData.shear,AV),ma=areas(ilData.moment,AM);
+  return{totalM:AM[n-1]*w,totalV:AV[n-1]*w,posM:ma.p*w,negM:ma.ng*w,posV:va.p*w,negV:va.ng*w};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHART
+// ═══════════════════════════════════════════════════════════════════════════
+
+function Chart({data,xKey,series,title,height=320,xLabel,yLabel,showZero=true}){
+  if(!data||data.length===0)return null;
+  const W=900,H=height,pad={t:28,r:24,b:44,l:80},pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  const xVals=data.map(d=>d[xKey]),xMin=Math.min(...xVals),xMax=Math.max(...xVals);
+  let yMin=Infinity,yMax=-Infinity;
+  for(const s of series)for(const d of data){const v=d[s.key];if(v!=null){if(v<yMin)yMin=v;if(v>yMax)yMax=v;}}
+  if(yMin===yMax){yMin-=1;yMax+=1;}const yPad=(yMax-yMin)*.08;yMin-=yPad;yMax+=yPad;
+  const sx=v=>pad.l+((v-xMin)/(xMax-xMin||1))*pw,sy=v=>pad.t+ph-((v-yMin)/(yMax-yMin||1))*ph;
+  const step=Math.max(1,Math.floor(data.length/500)),sampled=data.filter((_,i)=>i%step===0||i===data.length-1);
+  const nxt=8,nyt=6;
+  const fillArea=series.length>=2&&series[0].fill;
+  return(
+    <div style={{marginBottom:20}}>
+      {title&&<div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:6,fontFamily:"'DM Sans',sans-serif"}}>{title}</div>}
+      {series.length>1&&<div style={{display:"flex",gap:16,marginBottom:6,fontSize:11,fontFamily:"'DM Mono',monospace",color:"var(--text-dim)"}}>
+        {series.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",gap:5}}><div style={{width:14,height:3,borderRadius:1,background:s.color}}/>{s.label||s.key}</div>)}
+      </div>}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto",background:"var(--card-bg)",borderRadius:8,border:"1px solid var(--border)"}}>
+        {showZero&&yMin<0&&yMax>0&&<line x1={pad.l} x2={W-pad.r} y1={sy(0)} y2={sy(0)} stroke="var(--text-dim)" strokeWidth=".7" strokeDasharray="6 4"/>}
+        <line x1={pad.l} x2={W-pad.r} y1={H-pad.b} y2={H-pad.b} stroke="var(--border)" strokeWidth="1"/>
+        <line x1={pad.l} x2={pad.l} y1={pad.t} y2={H-pad.b} stroke="var(--border)" strokeWidth="1"/>
+        {Array.from({length:nyt+1},(_,i)=>i/nyt).map(f=>{const yv=yMin+f*(yMax-yMin);return<line key={`g${f}`} x1={pad.l} x2={W-pad.r} y1={sy(yv)} y2={sy(yv)} stroke="var(--border)" strokeWidth=".3"/>})}
+        {Array.from({length:nxt+1},(_,i)=>i/nxt).map(f=>{const xv=xMin+f*(xMax-xMin);return<text key={`x${f}`} x={sx(xv)} y={H-pad.b+18} fontSize="11" fill="var(--text-dim)" textAnchor="middle" fontFamily="'DM Mono',monospace">{xv.toFixed(1)}</text>})}
+        {Array.from({length:nyt+1},(_,i)=>i/nyt).map(f=>{const yv=yMin+f*(yMax-yMin);return<text key={`y${f}`} x={pad.l-8} y={sy(yv)+4} fontSize="11" fill="var(--text-dim)" textAnchor="end" fontFamily="'DM Mono',monospace">{yv.toFixed(1)}</text>})}
+        {xLabel&&<text x={pad.l+pw/2} y={H-6} fontSize="12" fill="var(--text-dim)" textAnchor="middle" fontFamily="'DM Sans',sans-serif">{xLabel}</text>}
+        {yLabel&&<text x={16} y={pad.t+ph/2} fontSize="12" fill="var(--text-dim)" textAnchor="middle" transform={`rotate(-90,16,${pad.t+ph/2})`} fontFamily="'DM Sans',sans-serif">{yLabel}</text>}
+        {fillArea&&(()=>{const s1=series[0],s2=series[1];
+          const pts1=sampled.map(d=>`${sx(d[xKey])},${sy(d[s1.key])}`);
+          const pts2=[...sampled].reverse().map(d=>`${sx(d[xKey])},${sy(d[s2.key])}`);
+          return<polygon points={[...pts1,...pts2].join(" ")} fill={s1.fillColor||"rgba(77,154,255,0.08)"} stroke="none"/>;})()}
+        {series.map((s,si)=>{const pts=sampled.filter(d=>d[s.key]!=null).map(d=>`${sx(d[xKey])},${sy(d[s.key])}`).join(" ");
+          return<polyline key={si} points={pts} fill="none" stroke={s.color} strokeWidth={s.width||2} strokeLinejoin="round"/>;
+        })}
+      </svg>
+    </div>);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BEAM DIAGRAM
+// ═══════════════════════════════════════════════════════════════════════════
+
+function BeamDiagram({leftCant,mainSpan,rightCant}){
+  const total=leftCant+mainSpan+rightCant;if(total<=0)return null;
+  const W=900,H=80,pad=50,bw=W-2*pad,sx=x=>pad+(x/total)*bw,by=36;
+  return(<svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:"auto"}}>
+    <line x1={sx(0)} x2={sx(total)} y1={by} y2={by} stroke="var(--accent)" strokeWidth="4" strokeLinecap="round"/>
+    {leftCant>0?<React.Fragment><polygon points={`${sx(leftCant)},${by+4} ${sx(leftCant)-8},${by+18} ${sx(leftCant)+8},${by+18}`} fill="var(--text)"/>
+      <text x={sx(leftCant/2)} y={by-10} fontSize="11" fill="var(--text-dim)" textAnchor="middle" fontFamily="'DM Mono',monospace">{leftCant}'</text></React.Fragment>
+      :<polygon points={`${sx(0)},${by+4} ${sx(0)-8},${by+18} ${sx(0)+8},${by+18}`} fill="var(--text)"/>}
+    {rightCant>0?<React.Fragment><polygon points={`${sx(leftCant+mainSpan)},${by+4} ${sx(leftCant+mainSpan)-8},${by+18} ${sx(leftCant+mainSpan)+8},${by+18}`} fill="var(--text)"/>
+      <text x={sx(leftCant+mainSpan+rightCant/2)} y={by-10} fontSize="11" fill="var(--text-dim)" textAnchor="middle" fontFamily="'DM Mono',monospace">{rightCant}'</text></React.Fragment>
+      :<polygon points={`${sx(total)},${by+4} ${sx(total)-8},${by+18} ${sx(total)+8},${by+18}`} fill="var(--text)"/>}
+    <text x={sx(leftCant+mainSpan/2)} y={by-10} fontSize="12" fill="var(--accent)" textAnchor="middle" fontWeight="600" fontFamily="'DM Mono',monospace">{mainSpan}'</text>
+    <line x1={sx(0)-10} x2={sx(total)+10} y1={by+20} y2={by+20} stroke="var(--border)" strokeWidth=".5"/>
+  </svg>);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// APP
+// ═══════════════════════════════════════════════════════════════════════════
+
+function App(){
+  const[leftCant,setLeftCant]=useState(0);
+  const[mainSpan,setMainSpan]=useState(60);
+  const[rightCant,setRightCant]=useState(0);
+  const[wLive,setWLive]=useState(1.0);
+  const[wDead,setWDead]=useState(1.0);
+  const[envData,setEnvData]=useState(null);
+  const[mainTab,setMainTab]=useState("plots");
+  const[computing,setComputing]=useState(false);
+
+  const runAnalysis=useCallback(()=>{
+    setComputing(true);
+    // Use setTimeout to let the UI update before heavy computation
+    setTimeout(()=>{
+      const EPS=0.0001;
+      const spans=[];
+      if(leftCant>0)spans.push({length:leftCant,type:"leftCant"});
+      spans.push({length:mainSpan,type:"main"});
+      if(rightCant>0)spans.push({length:rightCant,type:"rightCant"});
+      const numsp=spans.length,Z=spans.map(s=>s.length),spanTypes=spans.map(s=>s.type);
+      const totalLen=Z.reduce((a,b)=>a+b,0);
+
+      // Identify support locations (where cantilevers meet main span)
+      const supports=new Set();
+      if(leftCant>0)supports.add(leftCant);// left support
+      if(rightCant>0)supports.add(leftCant+mainSpan);// right support (= totalLen - rightCant)
+
+      // Build 2ft analysis points along entire bridge
+      // Skip exact support locations; add left/right of support instead
+      const posMap=new Map();// x -> tag
+      posMap.set(EPS,"");
+      for(let x=2;x<totalLen;x+=2){
+        if(supports.has(x))continue;// skip exact support
+        posMap.set(x,"");
+      }
+      posMap.set(totalLen-EPS,"");
+      // Add left/right of each support
+      for(const sx of supports){
+        posMap.set(sx-EPS,`← L of support @${sx}'`);
+        posMap.set(sx+EPS,`→ R of support @${sx}'`);
+      }
+      const points=[...posMap.entries()].sort((a,b)=>a[0]-b[0]).map(([x,tag])=>({x,tag}));
+
+      // For each point: determine which span it's in, compute IL, integrate
+      const rows=[];
+      for(const pt of points){
+        let cumLen=0,spanIdx=-1,localX=0;
+        for(let s=0;s<numsp;s++){
+          if(pt.x>=cumLen&&pt.x<=cumLen+Z[s]){spanIdx=s;localX=pt.x-cumLen;break;}
+          cumLen+=Z[s];
+        }
+        if(spanIdx<0)continue;
+        // Clamp localX away from exact boundaries
+        if(localX<EPS)localX=EPS;
+        if(localX>Z[spanIdx]-EPS)localX=Z[spanIdx]-EPS;
+
+        const il=runUnitLoadIL(spans,spanTypes,Z,numsp,totalLen,spanIdx,localX);
+        const dead=integrateIL(il,wDead);
+        const live=integrateIL(il,wLive);
+
+        rows.push({
+          x:pt.x,tag:pt.tag||"",
+          deadM:dead.totalM,deadV:dead.totalV,
+          livePosM:live.posM,liveNegM:live.negM,
+          livePosV:live.posV,liveNegV:live.negV,
+        });
+      }
+      setEnvData(rows);
+      setMainTab("plots");
+      setComputing(false);
+    },50);
+  },[leftCant,mainSpan,rightCant,wLive,wDead]);
+
+  // Find global extremes for summary cards
+  const extremes=useMemo(()=>{
+    if(!envData)return null;
+    let maxDM=-Infinity,minDM=Infinity,maxDV=-Infinity,minDV=Infinity;
+    let maxLM=-Infinity,minLM=Infinity,maxLV=-Infinity,minLV=Infinity;
+    let maxDMx=0,minDMx=0,maxDVx=0,minDVx=0,maxLMx=0,minLMx=0,maxLVx=0,minLVx=0;
+    for(const r of envData){
+      if(r.deadM>maxDM){maxDM=r.deadM;maxDMx=r.x;}if(r.deadM<minDM){minDM=r.deadM;minDMx=r.x;}
+      if(r.deadV>maxDV){maxDV=r.deadV;maxDVx=r.x;}if(r.deadV<minDV){minDV=r.deadV;minDVx=r.x;}
+      if(r.livePosM>maxLM){maxLM=r.livePosM;maxLMx=r.x;}if(r.liveNegM<minLM){minLM=r.liveNegM;minLMx=r.x;}
+      if(r.livePosV>maxLV){maxLV=r.livePosV;maxLVx=r.x;}if(r.liveNegV<minLV){minLV=r.liveNegV;minLVx=r.x;}
+    }
+    return{maxDM,minDM,maxDV,minDV,maxLM,minLM,maxLV,minLV,
+      maxDMx,minDMx,maxDVx,minDVx,maxLMx,minLMx,maxLVx,minLVx};
+  },[envData]);
+
+  const fv=(v,d=2)=>v!=null?v.toFixed(d):"—";
+  const cls=v=>v>0.0001?"val-pos":v<-0.0001?"val-neg":"";
+
+  return(
+    <div className="app">
+      <div className="header"><h1>Design Envelopes</h1><span className="sub">Beam w/ Cantilevers</span></div>
+      <p style={{fontSize:12,color:"var(--text-dim)",marginBottom:20,fontFamily:"'DM Mono',monospace"}}>Dead load and pattern-loaded live load envelopes via influence line integration</p>
+
+      <div className="section"><div className="section-title">Beam Geometry</div>
+        <div className="row" style={{marginBottom:14}}>
+          <div className="field" style={{width:140}}><label>Left Cant. (ft)</label><input type="number" min="0" step=".5" value={leftCant} onChange={e=>setLeftCant(+e.target.value||0)}/></div>
+          <div className="field" style={{width:140}}><label>Main Span (ft)</label><input type="number" min="1" step=".5" value={mainSpan} onChange={e=>setMainSpan(+e.target.value||1)}/></div>
+          <div className="field" style={{width:140}}><label>Right Cant. (ft)</label><input type="number" min="0" step=".5" value={rightCant} onChange={e=>setRightCant(+e.target.value||0)}/></div>
+        </div>
+        <BeamDiagram leftCant={leftCant} mainSpan={mainSpan} rightCant={rightCant}/>
+      </div>
+
+      <div className="section"><div className="section-title">Load Intensities</div>
+        <div className="row">
+          <div className="field" style={{width:160}}><label>Live Load (k/ft)</label><input type="number" step=".01" value={wLive} onChange={e=>setWLive(+e.target.value||0)}/></div>
+          <div className="field" style={{width:160}}><label>Dead Load (k/ft)</label><input type="number" step=".01" value={wDead} onChange={e=>setWDead(+e.target.value||0)}/></div>
+        </div>
+        <p className="note">Dead load covers the full span. Live load is pattern-loaded: positive and negative influence line areas are loaded independently to produce maximum and minimum effects at each point.</p>
+      </div>
+
+      <div style={{display:"flex",justifyContent:"center",marginBottom:24}}>
+        <button className="btn-run" onClick={runAnalysis} disabled={computing}>{computing?"Computing...":"Run Analysis"}</button>
+      </div>
+
+      {envData&&envData.length>0&&(
+        <React.Fragment>
+          <div className="section">
+            <div className="section-title">Results</div>
+            <div className="tabs">
+              <button className={`tab ${mainTab==="plots"?"active":""}`} onClick={()=>setMainTab("plots")}>Envelope Plots</button>
+              <button className={`tab ${mainTab==="table"?"active":""}`} onClick={()=>setMainTab("table")}>Data Table</button>
+            </div>
+
+            {mainTab==="plots"&&(
+              <React.Fragment>
+                <Chart data={envData} xKey="x" series={[{key:"deadM",color:"var(--accent)",width:2.5}]}
+                  title="Dead Load Moment (k·ft)" xLabel="Position along bridge (ft)" yLabel="Moment (k·ft)" height={320}/>
+
+                <Chart data={envData} xKey="x" series={[{key:"deadV",color:"var(--accent)",width:2.5}]}
+                  title="Dead Load Shear (kips)" xLabel="Position along bridge (ft)" yLabel="Shear (kips)" height={320}/>
+
+                <Chart data={envData} xKey="x" series={[
+                  {key:"livePosM",color:"var(--green)",width:2.5,label:"Max +M",fill:true,fillColor:"rgba(52,211,153,0.08)"},
+                  {key:"liveNegM",color:"var(--red)",width:2.5,label:"Max −M"},
+                ]} title="Live Load Moment Envelope (k·ft)" xLabel="Position along bridge (ft)" yLabel="Moment (k·ft)" height={340}/>
+
+                <Chart data={envData} xKey="x" series={[
+                  {key:"livePosV",color:"var(--green)",width:2.5,label:"Max +V",fill:true,fillColor:"rgba(52,211,153,0.08)"},
+                  {key:"liveNegV",color:"var(--red)",width:2.5,label:"Max −V"},
+                ]} title="Live Load Shear Envelope (kips)" xLabel="Position along bridge (ft)" yLabel="Shear (kips)" height={340}/>
+
+                {/* Summary cards */}
+                {extremes&&(
+                  <div style={{marginTop:12}}>
+                    <div style={{fontSize:13,fontWeight:600,marginBottom:10,color:"var(--text)"}}>Extreme Values</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:8}}>
+                      <div className="stat-card"><div className="stat-label">Max Dead M</div><div className="stat-val">{fv(extremes.maxDM)} <span style={{fontSize:10}}>k·ft @ {fv(extremes.maxDMx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Min Dead M</div><div className="stat-val">{fv(extremes.minDM)} <span style={{fontSize:10}}>k·ft @ {fv(extremes.minDMx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Max Dead V</div><div className="stat-val">{fv(extremes.maxDV)} <span style={{fontSize:10}}>kips @ {fv(extremes.maxDVx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Min Dead V</div><div className="stat-val">{fv(extremes.minDV)} <span style={{fontSize:10}}>kips @ {fv(extremes.minDVx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Max Live +M</div><div className="stat-val val-pos">{fv(extremes.maxLM)} <span style={{fontSize:10}}>k·ft @ {fv(extremes.maxLMx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Max Live −M</div><div className="stat-val val-neg">{fv(extremes.minLM)} <span style={{fontSize:10}}>k·ft @ {fv(extremes.minLMx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Max Live +V</div><div className="stat-val val-pos">{fv(extremes.maxLV)} <span style={{fontSize:10}}>kips @ {fv(extremes.maxLVx,1)}'</span></div></div>
+                      <div className="stat-card"><div className="stat-label">Max Live −V</div><div className="stat-val val-neg">{fv(extremes.minLV)} <span style={{fontSize:10}}>kips @ {fv(extremes.minLVx,1)}'</span></div></div>
+                    </div>
+                  </div>
+                )}
+              </React.Fragment>
+            )}
+
+            {mainTab==="table"&&(
+              <React.Fragment>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:"var(--accent2)"}}>Design Envelope Data (2 ft spacing)</div>
+                <div style={{overflowX:"auto",maxHeight:600,overflowY:"auto"}}>
+                  <table><thead style={{position:"sticky",top:0,background:"var(--card-bg)"}}><tr>
+                    <th>Pos (ft)</th>
+                    <th>Dead M (k·ft)</th><th>Dead V (kips)</th>
+                    <th>Live +M (k·ft)</th><th>Live −M (k·ft)</th>
+                    <th>Live +V (kips)</th><th>Live −V (kips)</th>
+                    <th></th>
+                  </tr></thead><tbody>
+                    {envData.map((r,i)=>{
+                      const isSup=r.tag&&r.tag.includes("support");
+                      return(
+                      <tr key={i} style={{background:isSup?"rgba(249,115,22,0.08)":"transparent"}}>
+                        <td style={{fontWeight:isSup?600:400}}>{isSup?r.x.toFixed(4):r.x.toFixed(1)}</td>
+                        <td>{fv(r.deadM)}</td><td style={{fontWeight:isSup?600:400}}>{fv(r.deadV)}</td>
+                        <td className="val-pos">{fv(r.livePosM)}</td><td className="val-neg">{fv(r.liveNegM)}</td>
+                        <td className="val-pos" style={{fontWeight:isSup?600:400}}>{fv(r.livePosV)}</td><td className="val-neg" style={{fontWeight:isSup?600:400}}>{fv(r.liveNegV)}</td>
+                        <td style={{fontSize:9,color:"var(--highlight)"}}>{r.tag||""}</td>
+                      </tr>);}
+                    )}
+                  </tbody></table>
+                </div>
+                <p className="note">Dead Load = {wDead} k/ft (full span). Live Load = {wLive} k/ft (pattern loaded via IL integration, +/− areas independent).</p>
+              </React.Fragment>
+            )}
+          </div>
+        </React.Fragment>
+      )}
+
+      <div style={{marginTop:32,paddingTop:16,borderTop:"1px solid var(--border)",fontSize:11,color:"var(--text-dim)",fontFamily:"'DM Mono',monospace",lineHeight:1.6}}>
+        <div style={{marginBottom:6}}>Developed by Christopher Higgins, PhD, PE · School of Civil and Construction Engineering · Oregon State University, 2025</div>
+        <div style={{marginBottom:6}}>Based on original Fortran analysis program by C. Higgins (2004)</div>
+        <div style={{fontStyle:"italic"}}>Disclaimer: This software is provided as-is for educational and reference purposes. Engineers should independently verify all results before using them for design. The author assumes no liability for the use of this software in engineering practice.</div>
+      </div>
+    </div>);
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
